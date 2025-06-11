@@ -5,11 +5,11 @@ from sklearn.metrics import silhouette_score
 import streamlit as st
 import matplotlib.pyplot as plt
 import seaborn as sns
-
+import joblib
+import io
 
 st.title('TensoraLabs - KMeans Clustering')
 st.write('Where ideas are built. Upload your dataset, select features, and perform KMeans clustering.')
-
 
 if 'model' not in st.session_state:
     st.session_state.model = None
@@ -17,7 +17,6 @@ if 'X_columns' not in st.session_state:
     st.session_state.X_columns = None
 if 'clusters' not in st.session_state:
     st.session_state.clusters = None
-
 
 file = st.file_uploader("Upload your CSV file", type=["csv"])
 if file:
@@ -39,6 +38,17 @@ if file:
             df['Cluster'] = model.fit_predict(X_scaled)
             st.session_state.model = model
             st.write(df[['Cluster'] + features].head())
+            joblib.dump((model, scaler, features), 'kmeans_model.pkl')
+            buffer = io.BytesIO()
+            joblib.dump((model, scaler, features), buffer)
+            buffer.seek(0)
+            st.download_button(
+                label="📥 Download Trained Clustering Model",
+                data=buffer,
+                file_name="kmeans_model.pkl",
+                mime="application/octet-stream"
+            )
+
             if len(features) == 2:
                 plt.figure(figsize=(8, 5))
                 sns.scatterplot(x=features[0], y=features[1], hue='Cluster', data=df, palette='tab10')
@@ -54,6 +64,7 @@ if file:
                 st.balloons()
 
             st.success("Clustering completed!")
+
 if st.session_state.model:
     st.header("🔮 Make Predictions")
 
@@ -66,7 +77,7 @@ if st.session_state.model:
 
     if st.button("📍 Predict Cluster"):
         input_df = pd.DataFrame([user_input])
-        input_scaled = st.session_state.model.transform(input_df[features])
+        _, scaler, features_used = joblib.load('kmeans_model.pkl')
+        input_scaled = scaler.transform(input_df[features_used])
         pred_cluster = st.session_state.model.predict(input_scaled)[0]
-
         st.success(f"Predicted Cluster: {pred_cluster}")
